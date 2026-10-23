@@ -90,8 +90,16 @@ data class Programme(val title: String, val startMs: Long, val endMs: Long) {
         if (endMs <= startMs) 0f else ((nowMs - startMs).toFloat() / (endMs - startMs)).coerceIn(0f, 1f)
 }
 
-/** A resolved stream: URL plus any headers the server insists on. */
-data class Stream(val url: String, val headers: Map<String, String> = emptyMap(), val fallbackUrl: String? = null)
+/** A resolved stream: URL plus any headers the server insists on, and any side-loaded subtitle files. */
+data class Stream(
+    val url: String,
+    val headers: Map<String, String> = emptyMap(),
+    val fallbackUrl: String? = null,
+    val subtitles: List<SubtitleFile> = emptyList(),
+)
+
+/** An external subtitle file the provider lists next to a movie (.srt / .vtt / .ass). */
+data class SubtitleFile(val url: String, val language: String?, val label: String?)
 
 data class Lineup(val categories: List<Category>, val channels: List<Channel>)
 

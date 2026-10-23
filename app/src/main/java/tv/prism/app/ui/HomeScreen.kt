@@ -430,7 +430,7 @@ private fun PreviewPane(vm: AppViewModel, state: UiState, modifier: Modifier) {
             Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(14.dp)).background(Color.Black),
             contentAlignment = Alignment.Center,
         ) {
-            if (state.playing != null) VideoSurface(vm.player.player, Modifier.fillMaxSize())
+            if (state.playing != null) VideoSurface(vm.player.player, Modifier.fillMaxSize(), showSubtitles = false)
             val err = resolveError ?: playerError
             when {
                 ch == null -> Text("Pick a channel", color = Palette.Muted)

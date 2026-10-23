@@ -444,9 +444,11 @@ fun VodPlayerScreen(vm: AppViewModel, state: UiState) {
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
     var paused by remember { mutableStateOf(false) }
+    var panelOpen by remember { mutableStateOf(false) }
+    val subtitleTracks by vm.player.textTracks.collectAsState()
 
     BackHandler { vm.closeVodPlayer() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    LaunchedEffect(panelOpen) { if (!panelOpen) runCatching { focus.requestFocus() } }
     LaunchedEffect(poke) {
         barVisible = true
         delay(4_000)
@@ -472,7 +474,8 @@ fun VodPlayerScreen(vm: AppViewModel, state: UiState) {
             .focusRequester(focus)
             .focusable()
             .onKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
+                // While the subtitle panel is open its list handles the D-pad.
+                if (panelOpen || e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 val ne = e.nativeKeyEvent
                 // Holding a skip key speeds up: 10 s steps become 60 s after a moment.
                 val boost = if (ne.repeatCount > 5) 6 else 1
@@ -485,7 +488,8 @@ fun VodPlayerScreen(vm: AppViewModel, state: UiState) {
                     AndroidKey.KEYCODE_DPAD_RIGHT, AndroidKey.KEYCODE_MEDIA_FAST_FORWARD -> vm.player.seekBy(30_000L * boost)
                     AndroidKey.KEYCODE_CHANNEL_UP, AndroidKey.KEYCODE_MEDIA_NEXT -> vm.playAdjacentEpisode(+1)
                     AndroidKey.KEYCODE_CHANNEL_DOWN, AndroidKey.KEYCODE_MEDIA_PREVIOUS -> vm.playAdjacentEpisode(-1)
-                    AndroidKey.KEYCODE_DPAD_UP, AndroidKey.KEYCODE_DPAD_DOWN, AndroidKey.KEYCODE_INFO -> Unit
+                    AndroidKey.KEYCODE_DPAD_DOWN, AndroidKey.KEYCODE_CAPTIONS, AndroidKey.KEYCODE_MENU -> panelOpen = true
+                    AndroidKey.KEYCODE_DPAD_UP, AndroidKey.KEYCODE_INFO -> Unit
                     else -> return@onKeyEvent false
                 }
                 poke++
@@ -520,7 +524,8 @@ fun VodPlayerScreen(vm: AppViewModel, state: UiState) {
                         color = Palette.Text, fontSize = 26.sp, fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                     )
-                    if (paused) Text("Paused", color = Palette.Accent, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    CcBadge(subtitleTracks)
+                    if (paused) Text("  Paused", color = Palette.Accent, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.height(14.dp))
                 ProgressLine(if (duration > 0) position.toFloat() / duration else 0f)
@@ -532,12 +537,14 @@ fun VodPlayerScreen(vm: AppViewModel, state: UiState) {
                 }
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "OK Pause/Play    ◀ −10s    ▶ +30s (hold to go faster)" +
+                    "OK Pause/Play    ◀ −10s    ▶ +30s (hold to go faster)    ▼ Subtitles & audio" +
                         (if (state.vod.playingEpisode != null) "    CH+/CH− Next/previous episode" else "") + "    Back Close",
                     color = Palette.Muted, fontSize = 13.sp,
                 )
             }
         }
+
+        if (panelOpen) TrackPanel(vm.player) { panelOpen = false }
     }
 }
 

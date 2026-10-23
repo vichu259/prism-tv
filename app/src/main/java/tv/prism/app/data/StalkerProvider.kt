@@ -181,15 +181,18 @@ class StalkerProvider(private val source: Source.Stalker, private val http: OkHt
     override suspend fun resolveVod(item: VodItem, episode: Int?): Stream {
         // Older portals play "/media/<id>.mpg" directly. Newer Ministra ones answer that with
         // "nothing_to_play": the title's files have to be listed first and the link made for a file.
-        val url = createVodLink(item.ref, episode)
+        val link = createVodLink(item.ref, episode)
             // Files get a temporary link by file id ("/media/file_<id>.mpg"), the way the portal's own
             // player asks; the file's raw URL is the last resort (some servers accept it directly).
             ?: firstFile(item, episode)?.let { linkForFile(it) }
             ?: throw IOException("Portal returned no stream for ${item.name}")
-        return Stream(url, headers = mapOf("User-Agent" to profile.userAgent))
+        return Stream(link.url, headers = mapOf("User-Agent" to profile.userAgent), subtitles = link.subtitles)
     }
 
-    private suspend fun createVodLink(cmd: String, episode: Int?): String? {
+    /** A playable link plus the subtitle files the portal attached to it. */
+    private data class Link(val url: String, val subtitles: List<SubtitleFile> = emptyList())
+
+    private suspend fun createVodLink(cmd: String, episode: Int?): Link? {
         val js = call(
             mapOf(
                 "type" to "vod", "action" to "create_link", "cmd" to cmd,
@@ -197,7 +200,23 @@ class StalkerProvider(private val source: Source.Stalker, private val http: OkHt
                 "download" to "0", "force_ch_link_check" to "0",
             ),
         ) as? JSONObject
-        return StalkerEndpoints.stripCmd(js?.optString("cmd").orEmpty()).takeIf { it.startsWith("http") }
+        val url = StalkerEndpoints.stripCmd(js?.optString("cmd").orEmpty()).takeIf { it.startsWith("http") } ?: return null
+        return Link(url, parseSubtitles(js?.optJSONArray("subtitles")))
+    }
+
+    /** Portals list subtitles as objects; field names vary ("file"/"url"/"src", "lang"/"language"). */
+    private fun parseSubtitles(arr: JSONArray?): List<SubtitleFile> {
+        if (arr == null) return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull arr.optString(i).takeIf { it.isNotBlank() }?.let { SubtitleFile(absoluteLogo(it), null, null) }
+            val file = listOf("file", "url", "src", "link").firstNotNullOfOrNull { k -> o.optString(k).takeIf { it.isNotBlank() } }
+                ?: return@mapNotNull null
+            SubtitleFile(
+                url = absoluteLogo(file),
+                language = listOf("lang", "language", "code").firstNotNullOfOrNull { k -> o.optString(k).takeIf { it.isNotBlank() } },
+                label = listOf("label", "name", "title").firstNotNullOfOrNull { k -> o.optString(k).takeIf { it.isNotBlank() } },
+            )
+        }
     }
 
     // Shows are stored as movie -> seasons -> episodes -> files, each level one get_ordered_list
@@ -231,7 +250,7 @@ class StalkerProvider(private val source: Source.Stalker, private val http: OkHt
     }
 
     override suspend fun resolveEpisode(item: VodItem, season: VodSeason, episode: VodEpisode): Stream {
-        val url = if (season.id == LEGACY) {
+        val link = if (season.id == LEGACY) {
             createVodLink(item.ref, episode.number)
         } else {
             val files = listLevel(item.id, season.id, episode.id, maxPages = 1)
@@ -240,12 +259,12 @@ class StalkerProvider(private val source: Source.Stalker, private val http: OkHt
                 // number rides along in "series", as a MAG box's own player sends it.
                 ?.let { f -> linkForFile(f, episode.number) }
         } ?: throw IOException("Portal returned no stream for ${item.name} episode ${episode.number}")
-        return Stream(url, headers = mapOf("User-Agent" to profile.userAgent))
+        return Stream(link.url, headers = mapOf("User-Agent" to profile.userAgent), subtitles = link.subtitles)
     }
 
-    private suspend fun linkForFile(f: JSONObject, episodeNumber: Int? = null): String? =
+    private suspend fun linkForFile(f: JSONObject, episodeNumber: Int? = null): Link? =
         createVodLink("/media/file_${f.optString("id")}.mpg", episodeNumber)
-            ?: f.optString("cmd").ifBlank { f.optString("url") }.let(StalkerEndpoints::stripCmd).takeIf { it.startsWith("http") }
+            ?: f.optString("cmd").ifBlank { f.optString("url") }.let(StalkerEndpoints::stripCmd).takeIf { it.startsWith("http") }?.let { Link(it) }
 
     /** Every row of one level, following the portal's 14-per-page paging. */
     private suspend fun listLevel(movieId: String, seasonId: String, episodeId: String, maxPages: Int = 20): List<JSONObject> {

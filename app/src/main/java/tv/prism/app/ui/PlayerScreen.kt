@@ -61,9 +61,12 @@ fun PlayerScreen(vm: AppViewModel, state: UiState) {
     // Bumped on every interaction; the info bar shows for a few seconds after the last one.
     var poke by remember { mutableIntStateOf(1) }
     var infoVisible by remember { mutableStateOf(true) }
+    var panelOpen by remember { mutableStateOf(false) }
+    val subtitleTracks by vm.player.textTracks.collectAsState()
 
     BackHandler { vm.closePlayer() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    // Back to the video (and its keys) whenever the subtitle panel closes.
+    LaunchedEffect(panelOpen) { if (!panelOpen) runCatching { focus.requestFocus() } }
     LaunchedEffect(poke, state.playing?.id) {
         infoVisible = true
         delay(4_000)
@@ -77,13 +80,15 @@ fun PlayerScreen(vm: AppViewModel, state: UiState) {
             .focusRequester(focus)
             .focusable()
             .onKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
+                // While the subtitle panel is open its list handles the D-pad; don't zap channels underneath.
+                if (panelOpen || e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 val code = e.nativeKeyEvent.keyCode
                 when (code) {
+                    AndroidKey.KEYCODE_DPAD_LEFT, AndroidKey.KEYCODE_CAPTIONS, AndroidKey.KEYCODE_MENU -> panelOpen = true
                     AndroidKey.KEYCODE_DPAD_UP, AndroidKey.KEYCODE_CHANNEL_UP, AndroidKey.KEYCODE_PAGE_UP -> vm.zap(+1)
                     AndroidKey.KEYCODE_DPAD_DOWN, AndroidKey.KEYCODE_CHANNEL_DOWN, AndroidKey.KEYCODE_PAGE_DOWN -> vm.zap(-1)
                     AndroidKey.KEYCODE_DPAD_CENTER, AndroidKey.KEYCODE_ENTER, AndroidKey.KEYCODE_INFO,
-                    AndroidKey.KEYCODE_DPAD_LEFT, AndroidKey.KEYCODE_DPAD_RIGHT -> {
+                    AndroidKey.KEYCODE_DPAD_RIGHT -> {
                         // The first auto-repeat arrives ~0.5 s into a hold: treat it as a long press, once.
                         if (code == AndroidKey.KEYCODE_DPAD_CENTER && e.nativeKeyEvent.repeatCount == 1) {
                             state.playing?.let(vm::toggleFavorite)
@@ -119,13 +124,15 @@ fun PlayerScreen(vm: AppViewModel, state: UiState) {
             enter = fadeIn(), exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            InfoBar(state)
+            InfoBar(state, subtitleTracks)
         }
+
+        if (panelOpen) TrackPanel(vm.player) { panelOpen = false }
     }
 }
 
 @Composable
-private fun InfoBar(state: UiState) {
+private fun InfoBar(state: UiState, subtitleTracks: List<tv.prism.app.player.TrackOption>) {
     val ch = state.playing ?: return
     val now = System.currentTimeMillis()
     Box(
@@ -145,12 +152,14 @@ private fun InfoBar(state: UiState) {
                         Spacer(Modifier.width(10.dp))
                         Icon(Icons.Default.Star, "Favorite", tint = Palette.Fav, modifier = Modifier.size(22.dp))
                     }
+                    Spacer(Modifier.width(10.dp))
+                    CcBadge(subtitleTracks)
                     Spacer(Modifier.weight(1f))
                     Text(clock(now), color = Palette.Muted, fontSize = 20.sp)
                 }
                 Spacer(Modifier.height(10.dp))
                 NowNext(state.epg[ch.id].orEmpty(), now)
-                Text("▲▼ Change channel    0–9 Jump to number    Hold OK Favorite    Back Guide", color = Palette.Muted, fontSize = 13.sp)
+                Text("▲▼ Change channel    0–9 Jump to number    ◀ Subtitles & audio    Hold OK Favorite    Back Guide", color = Palette.Muted, fontSize = 13.sp)
             }
         }
     }
@@ -159,7 +168,7 @@ private fun InfoBar(state: UiState) {
 /** Attaches a PlayerView to the shared player; detaching only clears this view's own surface. */
 @OptIn(UnstableApi::class)
 @Composable
-fun VideoSurface(player: Player, modifier: Modifier = Modifier) {
+fun VideoSurface(player: Player, modifier: Modifier = Modifier, showSubtitles: Boolean = true) {
     AndroidView(
         factory = { ctx ->
             PlayerView(ctx).apply {
@@ -168,6 +177,18 @@ fun VideoSurface(player: Player, modifier: Modifier = Modifier) {
                 setShutterBackgroundColor(android.graphics.Color.BLACK)
                 setKeepContentOnPlayerReset(true)
                 isFocusable = false
+                // TV-readable subtitles: white on a translucent black box, a little larger than default.
+                subtitleView?.apply {
+                    visibility = if (showSubtitles) android.view.View.VISIBLE else android.view.View.GONE
+                    setStyle(
+                        androidx.media3.ui.CaptionStyleCompat(
+                            android.graphics.Color.WHITE, 0xB3000000.toInt(), android.graphics.Color.TRANSPARENT,
+                            androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_NONE, android.graphics.Color.BLACK, null,
+                        ),
+                    )
+                    setFractionalTextSize(androidx.media3.ui.SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 1.15f)
+                    setBottomPaddingFraction(0.06f)
+                }
                 this.player = player
             }
         },
