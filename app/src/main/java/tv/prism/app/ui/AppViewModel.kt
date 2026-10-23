@@ -332,7 +332,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         playError.value = null
         _ui.value.active?.let { store.setLastChannel(it.id, channel.id) }
         runCatching { p.resolve(channel) }
-            .onSuccess { if (_ui.value.playing?.id == channel.id) player.play(it) }
+            .onSuccess {
+                if (_ui.value.playing?.id != channel.id) return@onSuccess
+                // A dead link gets one fresh retry before showing an error.
+                player.onLinkRejected = {
+                    viewModelScope.launch {
+                        val fresh = runCatching { p.resolve(channel) }.getOrNull()
+                        if (fresh != null && _ui.value.playing?.id == channel.id) player.play(fresh, retry = true)
+                        else if (_ui.value.playing?.id == channel.id) playError.value = "This channel isn't available right now"
+                    }
+                }
+                player.play(it)
+            }
             .onFailure { e ->
                 if (_ui.value.playing?.id == channel.id) {
                     player.stop()

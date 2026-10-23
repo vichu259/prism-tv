@@ -86,12 +86,21 @@ class PlayerManager(context: Context) {
     /** Whether the remembered subtitle choice has been applied to the current stream yet. */
     private var appliedPreference = false
 
+    /**
+     * Called once when the server rejects a link with 403/404/410: provider links are short-lived
+     * and sometimes point at a dead node, so the owner may fetch a fresh one and call [play] again
+     * with retry = true. Not called a second time for the same stream.
+     */
+    var onLinkRejected: (() -> Unit)? = null
+    private var relinked = false
+
     private var current: Stream? = null
     private var triedFallback = false
     private var retries = 0
 
     /** [startMs] > 0 resumes a movie part-way through; live channels always start at the live edge. */
-    fun play(stream: Stream, startMs: Long = 0) {
+    fun play(stream: Stream, startMs: Long = 0, retry: Boolean = false) {
+        if (!retry) relinked = false
         current = stream
         triedFallback = false
         retries = 0
@@ -204,6 +213,7 @@ class PlayerManager(context: Context) {
 
     fun stop() {
         current = null
+        onLinkRejected = null
         player.stop()
         player.clearMediaItems()
         _state.value = PlayState.Idle
@@ -237,6 +247,11 @@ class PlayerManager(context: Context) {
                     retries++
                     player.prepare()
                 }
+                !relinked && onLinkRejected != null && httpStatus(error) in setOf(403, 404, 410) -> {
+                    relinked = true
+                    _state.value = PlayState.Loading
+                    onLinkRejected?.invoke()
+                }
                 else -> {
                     _state.value = PlayState.Error
                     _error.value = describe(error)
@@ -245,11 +260,17 @@ class PlayerManager(context: Context) {
         }
     }
 
+    private fun httpStatus(e: PlaybackException): Int? =
+        (e.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode
+
     private fun describe(e: PlaybackException): String = when (e.errorCode) {
-        PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
-            if ((e.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode == 429)
-                "The provider is limiting requests. Wait a few minutes."
-            else "The server refused this stream (it may allow only one device at a time)"
+        PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> when (val code = httpStatus(e)) {
+            404, 410 -> "This channel isn't available right now: the provider's server doesn't have it (HTTP $code)"
+            401, 403 -> "The provider refused this stream (HTTP $code). Your plan may not include it, or another device is using your account."
+            429 -> "The provider is limiting requests. Wait a few minutes."
+            in 500..599 -> "The provider's server had a problem (HTTP $code). Try again in a moment."
+            else -> "The stream couldn't be opened (HTTP $code)"
+        }
         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> "Can't reach the stream: check your connection"
         PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
