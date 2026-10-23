@@ -68,6 +68,7 @@ import androidx.tv.material3.Text
 import coil.compose.SubcomposeAsyncImage
 import kotlinx.coroutines.delay
 import tv.prism.app.data.AddedDate
+import tv.prism.app.data.HistoryEntry
 import tv.prism.app.data.VodItem
 import tv.prism.app.player.PlayState
 
@@ -76,8 +77,10 @@ import tv.prism.app.player.PlayState
 @Composable
 fun VodSection(vm: AppViewModel, state: UiState) {
     val v = state.vod
+    // Read favorites from UI state (not the view model directly) so hearts/buttons redraw on toggle.
+    val favIds = state.vodFavorites.mapTo(HashSet()) { it.key }
     v.selected?.let {
-        VodDetail(vm, it, v)
+        VodDetail(vm, it, v, favIds)
         return
     }
     Row(Modifier.fillMaxSize().padding(start = 24.dp, top = 8.dp, bottom = 16.dp)) {
@@ -114,15 +117,15 @@ fun VodSection(vm: AppViewModel, state: UiState) {
                 v.items.isEmpty() && v.categories.isNotEmpty() && !v.hasMore -> CenterMessage(
                     if (v.query.isNotBlank()) "Nothing matches \"${v.query}\"" else "Nothing in this category", Modifier.fillMaxWidth(),
                 )
-                state.vodListMode -> TitleList(vm, v)
-                else -> PosterGrid(vm, v)
+                state.vodListMode -> TitleList(vm, v, favIds)
+                else -> PosterGrid(vm, v, favIds)
             }
         }
     }
 }
 
 @Composable
-private fun PosterGrid(vm: AppViewModel, v: VodState) {
+private fun PosterGrid(vm: AppViewModel, v: VodState, favIds: Set<String>) {
     val grid = rememberLazyGridState()
     val returnFocus = remember { FocusRequester() }
     val returnIndex = v.items.indexOfFirst { it.id == v.lastOpenedId }
@@ -151,7 +154,7 @@ private fun PosterGrid(vm: AppViewModel, v: VodState) {
         itemsIndexed(v.items, key = { i, it -> "${it.id}#$i" }) { i, item ->
             PosterCard(
                 item,
-                favorite = vm.isVodFavorite(item),
+                favorite = HistoryEntry.vodKey(item.id) in favIds,
                 onLongClick = { vm.toggleVodFavorite(item) },
                 modifier = if (i == returnIndex) Modifier.focusRequester(returnFocus) else Modifier,
             ) { vm.openVod(item) }
@@ -161,7 +164,7 @@ private fun PosterGrid(vm: AppViewModel, v: VodState) {
 
 /** Video Club as a list: small poster, title, year/rating/added and a short description. */
 @Composable
-private fun TitleList(vm: AppViewModel, v: VodState) {
+private fun TitleList(vm: AppViewModel, v: VodState, favIds: Set<String>) {
     val list = androidx.compose.foundation.lazy.rememberLazyListState()
     val returnFocus = remember { FocusRequester() }
     val returnIndex = v.items.indexOfFirst { it.id == v.lastOpenedId }
@@ -197,7 +200,7 @@ private fun TitleList(vm: AppViewModel, v: VodState) {
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(item.displayName, color = Palette.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                            if (vm.isVodFavorite(item)) Text("  ♥", color = Palette.Text, fontSize = 14.sp)
+                            if (HistoryEntry.vodKey(item.id) in favIds) Text("  ♥", color = Palette.Text, fontSize = 14.sp)
                             if (AddedDate.isNew(item.addedMs)) NewBadge(Modifier.padding(start = 10.dp))
                         }
                         Spacer(Modifier.height(2.dp))
@@ -297,7 +300,7 @@ fun Poster(item: VodItem, modifier: Modifier) {
 // --- Detail ----------------------------------------------------------------------------------
 
 @Composable
-private fun VodDetail(vm: AppViewModel, item: VodItem, v: VodState) {
+private fun VodDetail(vm: AppViewModel, item: VodItem, v: VodState, favIds: Set<String>) {
     val playFocus = remember { FocusRequester() }
     BackHandler { vm.closeVod() }
     // Land on Play (movie) or the first season (show) once we know which it is.
@@ -335,33 +338,32 @@ private fun VodDetail(vm: AppViewModel, item: VodItem, v: VodState) {
             Spacer(Modifier.height(18.dp))
             when {
                 v.detailLoading -> Text("Loading…", color = Palette.Muted, fontSize = 16.sp)
-                v.seasons.isEmpty() -> MovieActions(vm, item, playFocus)
-                else -> SeasonsAndEpisodes(vm, item, v, playFocus)
+                v.seasons.isEmpty() -> MovieActions(vm, item, playFocus, HistoryEntry.vodKey(item.id) in favIds)
+                else -> SeasonsAndEpisodes(vm, item, v, playFocus, HistoryEntry.vodKey(item.id) in favIds)
             }
         }
     }
 }
 
 @Composable
-private fun MovieActions(vm: AppViewModel, item: VodItem, playFocus: FocusRequester) {
+private fun MovieActions(vm: AppViewModel, item: VodItem, playFocus: FocusRequester, isFavorite: Boolean) {
     val resume = vm.resumeMs(item)
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(onClick = { vm.playVod(item) }, modifier = Modifier.focusRequester(playFocus)) {
             Text(if (resume > 0) "▶  Resume from ${formatTime(resume)}" else "▶  Play")
         }
         if (resume > 0) OutlinedButton(onClick = { vm.playVod(item, fromStart = true) }) { Text("Start over") }
-        FavoriteButton(vm, item)
+        FavoriteButton(vm, item, isFavorite)
     }
 }
 
 @Composable
-private fun FavoriteButton(vm: AppViewModel, item: VodItem) {
-    val fav = vm.isVodFavorite(item)
+private fun FavoriteButton(vm: AppViewModel, item: VodItem, fav: Boolean) {
     OutlinedButton(onClick = { vm.toggleVodFavorite(item) }) { Text(if (fav) "♥  In favorites" else "♡  Favorite") }
 }
 
 @Composable
-private fun SeasonsAndEpisodes(vm: AppViewModel, item: VodItem, v: VodState, firstFocus: FocusRequester) {
+private fun SeasonsAndEpisodes(vm: AppViewModel, item: VodItem, v: VodState, firstFocus: FocusRequester, isFavorite: Boolean) {
     val last = vm.lastEpisodeOf(item)
     val unnamedSingle = v.seasons.size == 1 && v.seasons.first().name == "Episodes"
     val season = v.season
@@ -382,7 +384,7 @@ private fun SeasonsAndEpisodes(vm: AppViewModel, item: VodItem, v: VodState, fir
                 )
             }
         }
-        FavoriteButton(vm, item)
+        FavoriteButton(vm, item, isFavorite)
     }
     Spacer(Modifier.height(12.dp))
     // The Continue button takes initial focus when present; otherwise the first season chip / episode does.

@@ -72,7 +72,7 @@ fun HomeHub(vm: AppViewModel, state: UiState) {
     // category belongs to Video Club; the last channel already reopens on Live TV.
     val rows = buildList<@Composable () -> Unit> {
         if (continueRow.isNotEmpty()) add { VodRow("Continue watching", continueRow, vm, onEntry) }
-        if (favoriteTitles.isNotEmpty()) add { VodRow("Favorites", favoriteTitles, vm, onEntry, onClick = vm::playFavorite) }
+        if (favoriteTitles.isNotEmpty()) add { VodRow("Favorites", favoriteTitles, vm, onEntry, onClick = vm::openFromHistory) }
         if (favorites.isNotEmpty()) add { ChannelRow("Favorite channels", favorites, state, vm, onChannel) }
     }
 

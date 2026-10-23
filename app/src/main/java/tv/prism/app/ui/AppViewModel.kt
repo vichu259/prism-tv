@@ -389,16 +389,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(vodFavorites = list) }
     }
 
-    /** OK on a Favorites card: continue it if it was watched; otherwise play a movie, or open a show's episodes. */
-    fun playFavorite(fav: HistoryEntry) {
-        val watched = _ui.value.history.firstOrNull { it.key == fav.key }
-        when {
-            watched != null -> playFromHistory(watched)
-            fav.kind == HistoryEntry.MOVIE && fav.vod != null -> playVod(fav.vod)
-            else -> openFromHistory(fav)
-        }
-    }
-
     private fun recordHistory(entry: HistoryEntry) {
         val source = _ui.value.active ?: return
         val list = HistoryList.upsert(_ui.value.history, entry)
