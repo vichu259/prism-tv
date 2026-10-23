@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 320x180 TV home banner: a prism splitting light on a dark field. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#0E0F14" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#00000000" android:strokeColor="#F2F2F2" android:strokeWidth="5"
+        android:strokeLineJoin="round" android:pathData="M88,52 L118,128 L58,128 Z" />
+    <path android:fillColor="#FF5A5F" android:pathData="M108,90 L150,80 L150,86 Z" />
+    <path android:fillColor="#FFC145" android:pathData="M108,90 L150,88 L150,94 Z" />
+    <path android:fillColor="#4CD3A0" android:pathData="M108,90 L150,96 L150,102 Z" />
+    <path android:fillColor="#5B8CFF" android:pathData="M108,90 L150,104 L150,110 Z" />
+    <path android:fillColor="#F2F2F2" android:pathData="M176,72 h10 c11,0 18,6 18,15 s-7,15 -18,15 h-3 v14 h-7z M183,79 v16 h3 c6,0 10,-3 10,-8 s-4,-8 -10,-8z" />
+    <path android:fillColor="#F2F2F2" android:pathData="M210,84 h7 v4 c2,-3 5,-5 9,-5 v7 c-5,0 -9,3 -9,8 v18 h-7z" />
+    <path android:fillColor="#F2F2F2" android:pathData="M231,84 h7 v32 h-7z M234.5,70 a4.5,4.5 0 1,1 0,9 a4.5,4.5 0 1,1 0,-9z" />
+    <path android:fillColor="#F2F2F2" android:pathData="M244,107 c2,2 5,3 8,3 c3,0 5,-1 5,-3 c0,-5 -13,-3 -13,-13 c0,-6 5,-10 12,-10 c4,0 7,1 10,3 l-3,6 c-2,-2 -4,-2 -7,-2 c-2,0 -4,1 -4,3 c0,5 13,3 13,13 c0,6 -5,10 -12,10 c-5,0 -9,-1 -12,-4z" />
+    <path android:fillColor="#F2F2F2" android:pathData="M269,84 h7 v3 c2,-2 5,-4 9,-4 c4,0 6,2 8,5 c2,-3 6,-5 10,-5 c6,0 10,4 10,11 v22 h-7 v-20 c0,-4 -2,-6 -5,-6 c-4,0 -6,3 -6,7 v19 h-7 v-20 c0,-4 -2,-6 -5,-6 c-4,0 -6,3 -6,7 v19 h-7z" />
+</vector>

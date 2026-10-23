@@ -1,0 +1,19 @@
+# Build output
+.gradle/
+.kotlin/
+build/
+app/build/
+*.apk
+*.aab
+
+# Local machine config (SDK path)
+local.properties
+
+# IDE / OS
+.idea/
+*.iml
+.DS_Store
+
+# Local testing artefacts (TV screenshots, test playlists)
+shots/
+testserve/
