@@ -145,7 +145,7 @@ includes both.
 
 ```bash
 git clone <this-repo-url>
-cd prism
+cd prism-tv
 echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties   # path to your Android SDK
 ./gradlew testDebugUnitTest        # unit tests
 ./gradlew assembleRelease          # APK -> app/build/outputs/apk/release/app-release.apk
@@ -171,3 +171,9 @@ Built with Kotlin, Jetpack Compose for TV, Media3 ExoPlayer, OkHttp and Coil. Mi
 
 Prism has no accounts, analytics or ads. Your sources, favorites and watch history are stored only on
 your TV. Prism connects only to the providers you add, plus the artwork links they supply.
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 vichu259
