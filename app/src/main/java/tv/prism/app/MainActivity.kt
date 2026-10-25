@@ -38,12 +38,13 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         vm.saveVodPosition()
-        // Don't keep streaming (and using the provider's connection slot) in the background.
-        vm.player.player.pause()
+        // Release the stream and the hardware video decoder while in the background: pausing alone
+        // keeps a decoder reserved, and these TVs have so few that other apps' video can stutter.
+        vm.player.suspend()
     }
 
     override fun onStart() {
         super.onStart()
-        vm.player.player.play()
+        vm.player.resume()
     }
 }

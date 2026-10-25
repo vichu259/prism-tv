@@ -45,7 +45,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
@@ -171,12 +170,8 @@ private fun InfoBar(state: UiState, subtitleTracks: List<tv.prism.app.player.Tra
 fun VideoSurface(player: Player, modifier: Modifier = Modifier, showSubtitles: Boolean = true) {
     AndroidView(
         factory = { ctx ->
-            PlayerView(ctx).apply {
-                useController = false
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                setShutterBackgroundColor(android.graphics.Color.BLACK)
-                setKeepContentOnPlayerReset(true)
-                isFocusable = false
+            // Inflated from XML: the surface type (TextureView, see player_view.xml) can't be set in code.
+            (android.view.LayoutInflater.from(ctx).inflate(tv.prism.app.R.layout.player_view, null) as PlayerView).apply {
                 // TV-readable subtitles: white on a translucent black box, a little larger than default.
                 subtitleView?.apply {
                     visibility = if (showSubtitles) android.view.View.VISIBLE else android.view.View.GONE

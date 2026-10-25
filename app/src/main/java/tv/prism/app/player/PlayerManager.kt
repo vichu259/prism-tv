@@ -211,6 +211,22 @@ class PlayerManager(context: Context) {
         }
     }
 
+    /**
+     * App went to the background: stop() frees the decoder and network but keeps the media item and
+     * position, so [resume] can pick up (movies at the same spot, live channels at the live edge).
+     */
+    fun suspend() {
+        if (player.mediaItemCount == 0) return
+        player.playWhenReady = false
+        player.stop()
+    }
+
+    fun resume() {
+        if (player.mediaItemCount == 0 || current == null) return
+        player.prepare()
+        player.playWhenReady = true
+    }
+
     fun stop() {
         current = null
         onLinkRejected = null
